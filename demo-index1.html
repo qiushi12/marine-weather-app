@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>海上风电窗口期</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f8ff;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #003366;
+        }
+        .map-container {
+            height: 400px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .coordinates {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        input {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #003366;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #002244;
+        }
+        .chart-container {
+            margin-top: 20px;
+            position: relative;
+            height: 500px;
+        }
+        .info-panel {
+            background-color: white;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        .daily-max {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .daily-max-item {
+            background-color: #e6f2ff;
+            padding: 10px;
+            border-radius: 4px;
+            text-align: center;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            display: none;
+        }
+        .error {
+            color: red;
+            padding: 10px;
+            background-color: #ffe6e6;
+            border-radius: 4px;
+            margin-top: 10px;
+            display: none;
+        }
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        .data-table th, .data-table td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: center;
+        }
+        .data-table th {
+            background-color: #003366;
+            color: white;
+        }
+        /* 滚动表格容器 */
+        .table-container {
+            overflow-x: auto;
+            max-width: 100%;
+        }
+        /* 折叠表格样式 */
+        .collapsible {
+            background-color: #003366;
+            color: white;
+            cursor: pointer;
+            padding: 10px;
+            width: 100%;
+            border: none;
+            text-align: left;
+            outline: none;
+            font-size: 15px;
+            margin-top: 5px;
+        }
+        .collapsible:hover {
+            background-color: #002244;
+        }
+        .collapsible:after {
+            content: '\25BC';
+            float: right;
+            transform: rotate(0deg);
+            transition: transform 0.3s ease;
+        }
+        .collapsible.active:after {
+            transform: rotate(180deg);
+        }
+        .content {
+            padding: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            background-color: white;
+        }
+        .content.active {
+            max-height: 1000px;
+            transition: max-height 0.5s ease-in;
+        }
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .summary-table th, .summary-table td {
+            border: 1px solid #ccc;
+            padding: 8px;
+            text-align: center;
+        }
+        .summary-table th {
+            background-color: #003366;
+            color: white;
+        }
+        .summary-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        /* 导航栏样式 */
+        .nav-tabs {
+            display: flex;
+            margin-top: 20px;
+            border-bottom: 1px solid #ccc;
+        }
+        .nav-tab {
+            padding: 10px 20px;
+            background-color: #e0e0e0;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-bottom: none;
+            margin-right: 5px;
+            border-radius: 5px 5px 0 0;
+        }
+        .nav-tab.active {
+            background-color: #003366;
+            color: white;
+        }
+        .tab-content {
+            display: none;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-top: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .risk-table-container {
+            margin-top: 10px;
+            overflow-x: auto;
+            max-width: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>海上风电窗口期</h1>
+        
+        <div class="controls">
+            <div class="coordinates">
+                <label>纬度:</label>
+                <input type="number" id="latitude" step="any" value="23.224147">
+                <label>经度:</label>
+                <input type="number" id="longitude" step="any" value="116.985192">
+            </div>
+            <button id="getWeather">获取海洋天气数据</button>
+        </div>
+        
+        <div id="map" class="map-container"></div>
+        
+        <div id="loading" class="loading">正在获取数据...</div>
+        <div id="error" class="error"></div>
+        
+        <div id="results" style="display: none;">
+            <div class="info-panel">
+                <h2>位置信息</h2>
+                <p>查询位置: 纬度 <span id="lat-value"></span>, 经度 <span id="lon-value"></span></p>
+                <p>数据时间范围: <span id="time-range"></span></p>
+                
+                <!-- 导航栏 -->
+                <div class="nav-tabs">
+                    <div class="nav-tab active" data-tab="tab1">叶轮起吊</div>
+                    <div class="nav-tab" data-tab="tab2">使用吊篮</div>
+                    <div class="nav-tab" data-tab="tab3">叶轮内工作</div>
+                </div>
+                
+                <!-- 叶轮起吊风险表格 -->
+                <div id="tab1" class="tab-content active">
+                    <h3>叶轮起吊风险评估（警告条件：风速&gt;6m/s或能见度&lt;0.1公里）</h3>
+                    <div id="lifting-risk-table-container" class="risk-table-container"></div>
+                </div>
+                
+                <!-- 使用吊篮风险表格 -->
+                <div id="tab2" class="tab-content">
+                    <h3>使用吊篮风险评估（警告条件：风速&gt;8m/s或浪高&gt;0.7m或能见度&lt;0.1公里）</h3>
+                    <div id="basket-risk-table-container" class="risk-table-container"></div>
+                </div>
+                
+                <!-- 叶轮内工作风险表格 -->
+                <div id="tab3" class="tab-content">
+                    <h3>叶轮内工作风险评估（警告条件：风速&gt;10m/s）</h3>
+                    <div id="work-risk-table-container" class="risk-table-container"></div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <canvas id="waveChart"></canvas>
+            </div>
+            
+            <div class="info-panel">
+                <h2>详细小时数据</h2>
+                <div id="daily-weather-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 初始化地图
+        const map = L.map('map').setView([23.224147, 116.985192], 6);
+        
+        // 添加多个地图瓦片选项，提高加载成功率
+        const tileLayers = [
+            // OpenTopoMap 瓦片
+            L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, ' +
+                             '&copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
+                maxZoom: 17
+            }),
+            // CartoDB 瓦片
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, ' +
+                             '&copy; <a href="https://carto.com/attributions">CARTO</a>',
+                maxZoom: 19
+            }),
+            // OpenStreetMap 瓦片（默认选项）
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                maxZoom: 19
+            })
+        ];
+        
+        // 尝试添加第一个可用的瓦片图层
+        let activeTileLayer = null;
+        for (let i = 0; i < tileLayers.length; i++) {
+            try {
+                tileLayers[i].addTo(map);
+                activeTileLayer = tileLayers[i];
+                break;
+            } catch (e) {
+                console.warn(`Failed to load tile layer ${i}:`, e);
+            }
+        }
+        
+        // 如果所有瓦片图层都加载失败，添加一个错误处理
+        if (!activeTileLayer) {
+            console.error("All tile layers failed to load");
+            // 添加一个简单的背景色以便用户能看到地图容器
+            document.getElementById('map').style.backgroundColor = '#dddddd';
+            document.getElementById('map').innerHTML = '<div style="display:flex;justify-content:center;align-items:center;height:100%;font-size:18px;color:#666666;">地图加载失败，请检查网络连接</div>';
+        }
+        
+        // 添加标记
+        let marker = L.marker([23.224147, 116.985192]).addTo(map);
+        
+        // 点击地图设置坐标
+        map.on('click', function(e) {
+            document.getElementById('latitude').value = e.latlng.lat.toFixed(6);
+            document.getElementById('longitude').value = e.latlng.lng.toFixed(6);
+            
+            if (marker) {
+                map.removeLayer(marker);
+            }
+            marker = L.marker([e.latlng.lat, e.latlng.lng]).addTo(map);
+        });
+        
+        // 获取天气数据
+        document.getElementById('getWeather').addEventListener('click', function() {
+            const lat = document.getElementById('latitude').value;
+            const lon = document.getElementById('longitude').value;
+            
+            if (!lat || !lon) {
+                showError('请输入有效的经纬度');
+                return;
+            }
+            
+            getWeatherData(lat, lon);
+        });
+        
+        // 全局变量存储图表实例
+        let waveChart = null;
+        let chartData = null;
+        
+        // 同时获取海洋和天气数据
+        async function getWeatherData(latitude, longitude) {
+            showLoading();
+            
+            try {
+                // 并行发送两个API请求
+                const [marineResponse, weatherResponse] = await Promise.all([
+                    fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${latitude}&longitude=${longitude}&hourly=wave_height&timezone=GMT&wind_speed_unit=ms&forecast_days=7`),
+                    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&hourly=wind_speed_10m,wind_direction_10m,wind_gusts_10m,weather_code,temperature_80m,precipitation,visibility&timezone=GMT&wind_speed_unit=ms&forecast_days=7`)
+                ]);
+                
+                if (!marineResponse.ok) {
+                    throw new Error(`海洋API错误: ${marineResponse.status}`);
+                }
+                
+                if (!weatherResponse.ok) {
+                    throw new Error(`天气API错误: ${weatherResponse.status}`);
+                }
+                
+                const marineData = await marineResponse.json();
+                const weatherData = await weatherResponse.json();
+                
+                // 合并数据
+                const combinedData = {
+                    latitude: marineData.latitude,
+                    longitude: marineData.longitude,
+                    hourly: {
+                        time: marineData.hourly.time,
+                        wave_height: marineData.hourly.wave_height,
+                        wind_speed_10m: weatherData.hourly.wind_speed_10m,
+                        wind_direction_10m: weatherData.hourly.wind_direction_10m,
+                        wind_gusts_10m: weatherData.hourly.wind_gusts_10m,
+                        weather_code: weatherData.hourly.weather_code,
+                        temperature_80m: weatherData.hourly.temperature_80m,
+                        precipitation: weatherData.hourly.precipitation,
+                        visibility: weatherData.hourly.visibility
+                    }
+                };
+                
+                displayWeatherData(combinedData);
+            } catch (error) {
+                console.error('Error fetching weather data:', error);
+                showError('获取数据失败: ' + error.message);
+            } finally {
+                hideLoading();
+            }
+        }
+        
+        // 显示天气数据
+        function displayWeatherData(data) {
+            if (!data || !data.hourly) {
+                showError('没有可用的海洋天气数据');
+                return;
+            }
+            
+            // 显示结果区域
+            document.getElementById('results').style.display = 'block';
+            
+            // 设置位置信息
+            document.getElementById('lat-value').textContent = data.latitude.toFixed(6);
+            document.getElementById('lon-value').textContent = data.longitude.toFixed(6);
+            
+            // 处理时间数据
+            const times = data.hourly.time.map(t => new Date(t));
+            document.getElementById('time-range').textContent = 
+                `${times[0].toLocaleString()} 至 ${times[times.length-1].toLocaleString()}`;
+            
+            // 创建风险评估表格
+            createRiskAssessmentTables(times, data.hourly);
+            
+            // 填充每日天气数据（折叠式）
+            fillDailyWeatherData(times, data.hourly);
+            
+            // 绘制图表，显示波高和风速数据
+            chartData = data.hourly; // 保存数据以便滚动操作
+            createWaveChart(times, data.hourly);
+        }
+        
+        // 创建风险评估表格
+        function createRiskAssessmentTables(times, hourlyData) {
+            // 获取唯一的日期列表（未来7天）
+            const dates = [...new Set(times.map(t => t.toDateString()))]
+                .map(d => new Date(d))
+                .sort((a, b) => a - b)
+                .slice(0, 7); // 只取前7天
+            
+            // 创建叶轮起吊风险表格
+            createLiftingRiskTable(dates, times, hourlyData);
+            
+            // 创建使用吊篮风险表格
+            createBasketRiskTable(dates, times, hourlyData);
+            
+            // 创建叶轮内工作风险表格
+            createWorkRiskTable(dates, times, hourlyData);
+        }
+        
+        // 创建叶轮起吊风险表格
+        function createLiftingRiskTable(dates, times, hourlyData) {
+            const container = document.getElementById('lifting-risk-table-container');
+            
+            // 创建表格元素
+            const table = document.createElement('table');
+            table.className = 'data-table';
+            table.style.width = '100%';
+            table.style.tableLayout = 'fixed';
+            
+            // 创建表头
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            
+            // 添加空的左上角单元格
+            /*const emptyHeader = document.createElement('th');
+            emptyHeader.textContent = '';
+            headerRow.appendChild(emptyHeader);*/
+            
+            // 添加空白列
+            const blankHeader = document.createElement('th');
+            blankHeader.textContent = '';
+            blankHeader.style.width = '20px';
+            blankHeader.style.fontSize = '10px';
+            headerRow.appendChild(blankHeader);
+            
+            // 添加小时列（0时到23时）
+            for (let hour = 0; hour < 24; hour++) {
+                const hourHeader = document.createElement('th');
+                hourHeader.textContent = `${hour}时`;
+                hourHeader.style.width = '20px';
+                hourHeader.style.fontSize = '10px';
+                headerRow.appendChild(hourHeader);
+            }
+            
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            
+            // 创建表体
+            const tbody = document.createElement('tbody');
+            
+            // 定义行标签
+            const rowLabels = ['今', '明', '后', '+3', '+4', '+5', '+6'];
+            
+            // 为每一天创建一行
+            dates.forEach((date, index) => {
+                const row = document.createElement('tr');
+                
+                // 添加日期单元格
+                const dateCell = document.createElement('td');
+                dateCell.textContent = rowLabels[index];
+                dateCell.style.whiteSpace = 'nowrap';
+                row.appendChild(dateCell);
+                
+                // 添加空白单元格
+                /*const blankCell = document.createElement('td');
+                blankCell.textContent = '';
+                blankCell.style.width = '20px';
+                row.appendChild(blankCell);*/
+                
+                // 为每个小时创建一个单元格
+                for (let hour = 0; hour < 24; hour++) {
+                    const hourCell = document.createElement('td');
+                    hourCell.textContent = '';
+                    hourCell.style.padding = '4px';
+                    hourCell.style.height = '25px';
+                    hourCell.style.width = '20px';
+                    
+                    // 查找该日期和小时的数据
+                    const dataIndex = times.findIndex(t => 
+                        t.getDate() === date.getDate() && 
+                        t.getMonth() === date.getMonth() && 
+                        t.getFullYear() === date.getFullYear() && 
+                        t.getHours() === hour
+                    );
+                    
+                    // 如果找到数据且满足风险条件（风速>6m/s 或 能见度<0.1公里），则标记为红色
+                    if (dataIndex !== -1) {
+                        const windSpeed = hourlyData.wind_speed_10m[dataIndex];
+                        const visibility = hourlyData.visibility[dataIndex] !== null ? 
+                            hourlyData.visibility[dataIndex] / 1000 : null; // 转换为公里
+                        
+                        if (windSpeed > 6 || (visibility !== null && visibility < 0.1)) {
+                            hourCell.style.backgroundColor = '#ffcccc';
+                        }
+                        
+                        hourCell.title = `风速: ${windSpeed.toFixed(2)} m/s${visibility !== null ? `, 能见度: ${visibility.toFixed(2)} 公里` : ''}`;
+                    }
+                    
+                    row.appendChild(hourCell);
+                }
+                
+                tbody.appendChild(row);
+            });
+            
+            table.appendChild(tbody);
+            container.innerHTML = '';
+            container.appendChild(table);
+        }
+        
+        // 创建使用吊篮风险表格
+        function createBasketRiskTable(dates, times, hourlyData) {
+            const container = document.getElementById('basket-risk-table-container');
+            
+            // 创建表格元素
+            const table = document.createElement('table');
+            table.className = 'data-table';
+            table.style.width = '100%';
+            table.style.tableLayout = 'fixed';
+            
+            // 创建表头
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            
+            // 添加空的左上角单元格
+            /*const emptyHeader = document.createElement('th');
+            emptyHeader.textContent = '';
+            headerRow.appendChild(emptyHeader);*/
+            
+            // 添加空白列
+            const blankHeader = document.createElement('th');
+            blankHeader.textContent = '';
+            blankHeader.style.width = '20px';
+            blankHeader.style.fontSize = '10px';
+            headerRow.appendChild(blankHeader);
+            
+            // 添加小时列（0时到23时）
+            for (let hour = 0; hour < 24; hour++) {
+                const hourHeader = document.createElement('th');
+                hourHeader.textContent = `${hour}时`;
+                hourHeader.style.width = '20px';
+                hourHeader.style.fontSize = '10px';
+                headerRow.appendChild(hourHeader);
+            }
+            
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            
+            // 创建表体
+            const tbody = document.createElement('tbody');
+            
+            // 定义行标签
+            const rowLabels = ['今', '明', '后', '+3', '+4', '+5', '+6'];
+            
+            // 为每一天创建一行
+            dates.forEach((date, index) => {
+                const row = document.createElement('tr');
+                
+                // 添加日期单元格
+                const dateCell = document.createElement('td');
+                dateCell.textContent = rowLabels[index];
+                dateCell.style.whiteSpace = 'nowrap';
+                row.appendChild(dateCell);
+                
+                // 添加空白单元格
+                /*const blankCell = document.createElement('td');
+                blankCell.textContent = '';
+                blankCell.style.width = '20px';
+                row.appendChild(blankCell);*/
+                
+                // 为每个小时创建一个单元格
+                for (let hour = 0; hour < 24; hour++) {
+                    const hourCell = document.createElement('td');
+                    hourCell.textContent = '';
+                    hourCell.style.padding = '4px';
+                    hourCell.style.height = '25px';
+                    hourCell.style.width = '20px';
+                    
+                    // 查找该日期和小时的数据
+                    const dataIndex = times.findIndex(t => 
+                        t.getDate() === date.getDate() && 
+                        t.getMonth() === date.getMonth() && 
+                        t.getFullYear() === date.getFullYear() && 
+                        t.getHours() === hour
+                    );
+                    
+                    // 如果找到数据且满足风险条件（风速>8m/s 或 浪高>0.7m 或 能见度<0.1公里），则标记为红色
+                    if (dataIndex !== -1) {
+                        const windSpeed = hourlyData.wind_speed_10m[dataIndex];
+                        const waveHeight = hourlyData.wave_height[dataIndex];
+                        const visibility = hourlyData.visibility[dataIndex] !== null ? 
+                            hourlyData.visibility[dataIndex] / 1000 : null; // 转换为公里
+                        
+                        if (windSpeed > 8 || waveHeight > 0.7 || (visibility !== null && visibility < 0.1)) {
+                            hourCell.style.backgroundColor = '#ffcccc';
+                        }
+                        
+                        hourCell.title = `风速: ${windSpeed.toFixed(2)} m/s, 浪高: ${waveHeight.toFixed(2)} 米${visibility !== null ? `, 能见度: ${visibility.toFixed(2)} 公里` : ''}`;
+                    }
+                    
+                    row.appendChild(hourCell);
+                }
+                
+                tbody.appendChild(row);
+            });
+            
+            table.appendChild(tbody);
+            container.innerHTML = '';
+            container.appendChild(table);
+        }
+        
+        // 创建叶轮内工作风险表格
+        function createWorkRiskTable(dates, times, hourlyData) {
+            const container = document.getElementById('work-risk-table-container');
+            
+            // 创建表格元素
+            const table = document.createElement('table');
+            table.className = 'data-table';
+            table.style.width = '100%';
+            table.style.tableLayout = 'fixed';
+            
+            // 创建表头
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            
+            // 添加空的左上角单元格
+            /*const emptyHeader = document.createElement('th');
+            emptyHeader.textContent = '';
+            headerRow.appendChild(emptyHeader);*/
+            
+            // 添加空白列
+            const blankHeader = document.createElement('th');
+            blankHeader.textContent = '';
+            blankHeader.style.width = '20px';
+            blankHeader.style.fontSize = '10px';
+            headerRow.appendChild(blankHeader);
+            
+            // 添加小时列（0时到23时）
+            for (let hour = 0; hour < 24; hour++) {
+                const hourHeader = document.createElement('th');
+                hourHeader.textContent = `${hour}时`;
+                hourHeader.style.width = '20px';
+                hourHeader.style.fontSize = '10px';
+                headerRow.appendChild(hourHeader);
+            }
+            
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            
+            // 创建表体
+            const tbody = document.createElement('tbody');
+            
+            // 定义行标签
+            const rowLabels = ['今', '明', '后', '+3', '+4', '+5', '+6'];
+            
+            // 为每一天创建一行
+            dates.forEach((date, index) => {
+                const row = document.createElement('tr');
+                
+                // 添加日期单元格
+                const dateCell = document.createElement('td');
+                dateCell.textContent = rowLabels[index];
+                dateCell.style.whiteSpace = 'nowrap';
+                row.appendChild(dateCell);
+                
+                // 添加空白单元格
+               /* const blankCell = document.createElement('td');
+                blankCell.textContent = '';
+                blankCell.style.width = '20px';
+                row.appendChild(blankCell);*/
+                
+                // 为每个小时创建一个单元格
+                for (let hour = 0; hour < 24; hour++) {
+                    const hourCell = document.createElement('td');
+                    hourCell.textContent = '';
+                    hourCell.style.padding = '4px';
+                    hourCell.style.height = '25px';
+                    hourCell.style.width = '20px';
+                    
+                    // 查找该日期和小时的数据
+                    const dataIndex = times.findIndex(t => 
+                        t.getDate() === date.getDate() && 
+                        t.getMonth() === date.getMonth() && 
+                        t.getFullYear() === date.getFullYear() && 
+                        t.getHours() === hour
+                    );
+                    
+                    // 如果找到数据且满足风险条件（风速>10m/s），则标记为红色
+                    if (dataIndex !== -1) {
+                        const windSpeed = hourlyData.wind_speed_10m[dataIndex];
+                        
+                        if (windSpeed > 10) {
+                            hourCell.style.backgroundColor = '#ffcccc';
+                        }
+                        
+                        hourCell.title = `风速: ${windSpeed.toFixed(2)} m/s`;
+                    }
+                    
+                    row.appendChild(hourCell);
+                }
+                
+                tbody.appendChild(row);
+            });
+            
+            table.appendChild(tbody);
+            container.innerHTML = '';
+            container.appendChild(table);
+        }
+        
+        // 填充每日天气数据（折叠式）
+        function fillDailyWeatherData(times, hourlyData) {
+            const container = document.getElementById('daily-weather-container');
+            container.innerHTML = '';
+            
+            // 按日期分组数据
+            const groupedData = {};
+            times.forEach((time, index) => {
+                const dateKey = time.toDateString();
+                if (!groupedData[dateKey]) {
+                    groupedData[dateKey] = {
+                        date: time,
+                        hours: []
+                    };
+                }
+                groupedData[dateKey].hours.push({
+                    time: time,
+                    wave_height: hourlyData.wave_height[index],
+                    wind_speed_10m: hourlyData.wind_speed_10m[index],
+                    wind_direction_10m: hourlyData.wind_direction_10m[index],
+                    wind_gusts_10m: hourlyData.wind_gusts_10m[index],
+                    weather_code: hourlyData.weather_code[index],
+                    temperature_80m: hourlyData.temperature_80m[index],
+                    precipitation: hourlyData.precipitation[index],
+                    visibility: hourlyData.visibility[index]
+                });
+            });
+            
+            // 获取唯一的日期列表（未来7天）
+            const dates = Object.keys(groupedData)
+                .map(d => new Date(d))
+                .sort((a, b) => a - b)
+                .slice(0, 7); // 只取前7天
+            
+            // 为每一天创建折叠面板
+            dates.forEach((date, index) => {
+                const dateKey = date.toDateString();
+                const dayData = groupedData[dateKey];
+                
+                // 计算最大风速和最大波高
+                let maxWindSpeed = 0;
+                let maxWaveHeight = 0;
+                dayData.hours.forEach(hour => {
+                    if (hour.wind_speed_10m > maxWindSpeed) maxWindSpeed = hour.wind_speed_10m;
+                    if (hour.wave_height > maxWaveHeight) maxWaveHeight = hour.wave_height;
+                });
+                
+                // 创建折叠按钮
+                const button = document.createElement('button');
+                button.className = 'collapsible';
+                button.textContent = `${date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric', weekday: 'short' })} - 最大风速: ${maxWindSpeed.toFixed(1)} m/s, 最大波高: ${maxWaveHeight.toFixed(1)} 米`;
+                
+                // 创建内容区域
+                const content = document.createElement('div');
+                content.className = 'content';
+                
+                // 创建小时数据表格
+                const table = document.createElement('table');
+                table.className = 'data-table';
+                table.innerHTML = `
+                    <thead>
+                        <tr>
+                            <th>时间</th>
+                            <th>天气</th>
+                            <th>波高 (米)</th>
+                            <th>风速 (米/秒)</th>
+                            <th>风向</th>
+                            <th>阵风 (米/秒)</th>
+                            <th>温度 (80米) (°C)</th>
+                            <th>降水 (mm)</th>
+                            <th>能见度 (公里)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="hourly-data-body-${index}">
+                    </tbody>
+                `;
+                
+                // 填充小时数据
+                const tbody = table.querySelector(`#hourly-data-body-${index}`);
+                dayData.hours.forEach(hour => {
+                    const weatherInfo = getWeatherInfo(hour.weather_code);
+                    const visibility = hour.visibility !== null ? 
+                        (hour.visibility / 1000).toFixed(1) : 'N/A';
+                    
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${hour.time.toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</td>
+                        <td>${weatherInfo.emoji} ${weatherInfo.description}</td>
+                        <td>${hour.wave_height.toFixed(2)}</td>
+                        <td>${hour.wind_speed_10m.toFixed(2)}</td>
+                        <td>${getWindDirection(hour.wind_direction_10m)}</td>
+                        <td>${hour.wind_gusts_10m.toFixed(2)}</td>
+                        <td>${hour.temperature_80m.toFixed(1)}</td>
+                        <td>${hour.precipitation.toFixed(1)}</td>
+                        <td>${visibility}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+                
+                content.appendChild(table);
+                
+                // 添加到容器
+                container.appendChild(button);
+                container.appendChild(content);
+                
+                // 添加事件监听器
+                button.addEventListener('click', function() {
+                    this.classList.toggle('active');
+                    content.classList.toggle('active');
+                });
+            });
+        }
+        
+        // 获取天气代码描述和emoji
+        function getWeatherInfo(code) {
+            const weatherInfo = {
+                0: { emoji: '☀️', description: '晴朗' },
+                1: { emoji: '☀️', description: '主要晴朗' },
+                2: { emoji: '⛅', description: '部分多云' },
+                3: { emoji: '☁️', description: '阴天' },
+                45: { emoji: '🌫️', description: '有雾' },
+                48: { emoji: '🌫️', description: '有霜雾' },
+                51: { emoji: '🌦️', description: '小雨' },
+                53: { emoji: '🌧️', description: '中雨' },
+                55: { emoji: '🌧️', description: '大雨' },
+                56: { emoji: '🌧️', description: '小冻雨' },
+                57: { emoji: '🌧️', description: '大冻雨' },
+                61: { emoji: '🌨️', description: '小雪' },
+                63: { emoji: '🌨️', description: '中雪' },
+                65: { emoji: '🌨️', description: '大雪' },
+                66: { emoji: '🌨️', description: '小冻雪' },
+                67: { emoji: '🌨️', description: '大冻雪' },
+                71: { emoji: '🌨️', description: '小雪' },
+                73: { emoji: '🌨️', description: '中雪' },
+                75: { emoji: '🌨️', description: '大雪' },
+                77: { emoji: '❄️', description: '雪粒' },
+                80: { emoji: '🌦️', description: '小阵雨' },
+                81: { emoji: '🌧️', description: '中阵雨' },
+                82: { emoji: '🌧️', description: '大阵雨' },
+                85: { emoji: '🌨️', description: '小阵雪' },
+                86: { emoji: '🌨️', description: '大阵雪' },
+                95: { emoji: '⛈️', description: '雷雨' },
+                96: { emoji: '⛈️', description: '小冰雹雷雨' },
+                99: { emoji: '⛈️', description: '大冰雹雷雨' }
+            };
+            
+            return weatherInfo[code] || { emoji: '❓', description: '未知' };
+        }
+
+        // 获取风向的中文表达
+        function getWindDirection(degrees) {
+            const directions = ['北', '东北', '东', '东南', '南', '西南', '西', '西北'];
+            const index = Math.round((degrees % 360) / 45) % 8;
+            return directions[index];
+        }
+        
+        // 创建波高图表
+        function createWaveChart(times, hourlyData) {
+            const ctx = document.getElementById('waveChart').getContext('2d');
+            
+            // 如果已有图表，先销毁
+            if (waveChart) {
+                waveChart.destroy();
+            }
+            
+            // 使用所有数据，不进行限制
+            const chartTimes = times;
+            const chartWaveHeights = hourlyData.wave_height;
+            const chartWindSpeeds = hourlyData.wind_speed_10m;
+            
+            waveChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: chartTimes.map(t => t.toLocaleString('zh-CN', { 
+                        month: 'short', 
+                        day: 'numeric', 
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    })),
+                    datasets: [
+                        {
+                            label: '波高',
+                            data: chartWaveHeights,
+                            borderColor: 'blue',
+                            backgroundColor: 'rgba(0, 0, 255, 0.1)',
+                            borderWidth: 2,
+                            fill: false,
+                            pointRadius: 0,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '风速',
+                            data: chartWindSpeeds,
+                            borderColor: 'green',
+                            backgroundColor: 'rgba(0, 128, 0, 0.1)',
+                            borderWidth: 2,
+                            borderDash: [5, 5],
+                            fill: false,
+                            pointRadius: 0,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            ticks: {
+                                maxRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 30
+                            },
+                            title: {
+                                display: true,
+                                text: '时间'
+                            }
+                        },
+                        y: {
+                            position: 'left',
+                            title: {
+                                display: true,
+                                text: '波高（米）'
+                            }
+                        },
+                        y1: {
+                            position: 'right',
+                            title: {
+                                display: true,
+                                text: '风速（米/秒）'
+                            },
+                            grid: {
+                                drawOnChartArea: false,
+                            },
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                }
+            });
+        }
+        
+        // 显示加载状态
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+        }
+        
+        // 隐藏加载状态
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+        
+        // 显示错误信息
+        function showError(message) {
+            document.getElementById('error').textContent = message;
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('results').style.display = 'none';
+        }
+        
+        // 初始化时获取默认位置的数据
+        window.addEventListener('load', function() {
+            getWeatherData(23.224147, 116.985192);
+        });
+        
+        // 导航栏切换功能
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabs = document.querySelectorAll('.nav-tab');
+            const contents = document.querySelectorAll('.tab-content');
+            
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function() {
+                    const tabId = this.getAttribute('data-tab');
+                    
+                    // 移除所有活动状态
+                    tabs.forEach(t => t.classList.remove('active'));
+                    contents.forEach(c => c.classList.remove('active'));
+                    
+                    // 添加活动状态到当前选项
+                    this.classList.add('active');
+                    document.getElementById(tabId).classList.add('active');
+                });
+            });
+        });
+    </script>
+</body>
+</html>
