@@ -124,6 +124,8 @@
             outline: none;
             font-size: 15px;
             margin-top: 5px;
+            position: relative;
+            z-index: 10;
         }
         .collapsible:hover {
             background-color: #002244;
@@ -143,10 +145,20 @@
             overflow: hidden;
             transition: max-height 0.3s ease-out;
             background-color: white;
+            /* 增加内边距防止内容紧贴边缘 */
+            padding-bottom: 10px;
         }
         .content.active {
-            max-height: 1000px;
+            max-height: none;
             transition: max-height 0.5s ease-in;
+        }
+        /* 为小时数据表格添加额外的容器和样式 */
+        .hourly-table-wrapper {
+            /* 确保表格不会被下一个日期按钮遮挡 */
+            position: relative;
+            z-index: 5;
+            /* 添加内边距创造空间 */
+            padding-top: 5px;
         }
         .summary-table {
             width: 100%;
@@ -450,11 +462,6 @@
             const thead = document.createElement('thead');
             const headerRow = document.createElement('tr');
             
-            // 添加空的左上角单元格
-            /*const emptyHeader = document.createElement('th');
-            emptyHeader.textContent = '';
-            headerRow.appendChild(emptyHeader);*/
-            
             // 添加空白列
             const blankHeader = document.createElement('th');
             blankHeader.textContent = '';
@@ -489,12 +496,6 @@
                 dateCell.textContent = rowLabels[index];
                 dateCell.style.whiteSpace = 'nowrap';
                 row.appendChild(dateCell);
-                
-                // 添加空白单元格
-                /*const blankCell = document.createElement('td');
-                blankCell.textContent = '';
-                blankCell.style.width = '20px';
-                row.appendChild(blankCell);*/
                 
                 // 为每个小时创建一个单元格
                 for (let hour = 0; hour < 24; hour++) {
@@ -556,11 +557,6 @@
             const thead = document.createElement('thead');
             const headerRow = document.createElement('tr');
             
-            // 添加空的左上角单元格
-            /*const emptyHeader = document.createElement('th');
-            emptyHeader.textContent = '';
-            headerRow.appendChild(emptyHeader);*/
-            
             // 添加空白列
             const blankHeader = document.createElement('th');
             blankHeader.textContent = '';
@@ -595,12 +591,6 @@
                 dateCell.textContent = rowLabels[index];
                 dateCell.style.whiteSpace = 'nowrap';
                 row.appendChild(dateCell);
-                
-                // 添加空白单元格
-                /*const blankCell = document.createElement('td');
-                blankCell.textContent = '';
-                blankCell.style.width = '20px';
-                row.appendChild(blankCell);*/
                 
                 // 为每个小时创建一个单元格
                 for (let hour = 0; hour < 24; hour++) {
@@ -663,11 +653,6 @@
             const thead = document.createElement('thead');
             const headerRow = document.createElement('tr');
             
-            // 添加空的左上角单元格
-            /*const emptyHeader = document.createElement('th');
-            emptyHeader.textContent = '';
-            headerRow.appendChild(emptyHeader);*/
-            
             // 添加空白列
             const blankHeader = document.createElement('th');
             blankHeader.textContent = '';
@@ -702,12 +687,6 @@
                 dateCell.textContent = rowLabels[index];
                 dateCell.style.whiteSpace = 'nowrap';
                 row.appendChild(dateCell);
-                
-                // 添加空白单元格
-               /* const blankCell = document.createElement('td');
-                blankCell.textContent = '';
-                blankCell.style.width = '20px';
-                row.appendChild(blankCell);*/
                 
                 // 为每个小时创建一个单元格
                 for (let hour = 0; hour < 24; hour++) {
@@ -809,6 +788,10 @@
                 const content = document.createElement('div');
                 content.className = 'content';
                 
+                // 创建表格容器，解决遮挡问题
+                const tableWrapper = document.createElement('div');
+                tableWrapper.className = 'hourly-table-wrapper';
+                
                 // 创建小时数据表格
                 const table = document.createElement('table');
                 table.className = 'data-table';
@@ -852,7 +835,9 @@
                     tbody.appendChild(row);
                 });
                 
-                content.appendChild(table);
+                // 将表格添加到专用容器，再添加到内容区域
+                tableWrapper.appendChild(table);
+                content.appendChild(tableWrapper);
                 
                 // 添加到容器
                 container.appendChild(button);
