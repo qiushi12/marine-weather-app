@@ -6,7 +6,8 @@
     <title>海上风电窗口期</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    // 添加 ECharts 库
+    <script src="https://cdn.jsdelivr.net/npm/echarts/dist/echarts.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -58,7 +59,7 @@
         .chart-container {
             margin-top: 20px;
             position: relative;
-            height: 500px;
+            height: 550px;
         }
         .info-panel {
             background-color: white;
@@ -249,8 +250,9 @@
                 </div>
             </div>
             
+            <!-- 添加 ECharts 图表容器 -->
             <div class="chart-container">
-                <canvas id="waveChart"></canvas>
+                <div id="echartContainer" style="width: 100%; height: 100%;"></div>
             </div>
             
             <div class="info-panel">
@@ -333,7 +335,7 @@
         });
         
         // 全局变量存储图表实例
-        let waveChart = null;
+        let echartInstance = null; // 添加 ECharts 实例变量
         let chartData = null;
         
         // 同时获取海洋和天气数据
@@ -411,7 +413,9 @@
             
             // 绘制图表，显示波高和风速数据
             chartData = data.hourly; // 保存数据以便滚动操作
-            createWaveChart(times, data.hourly);
+            
+            // 创建 ECharts 图表
+            createEChart(times, data.hourly);
         }
         
         // 创建风险评估表格
@@ -516,9 +520,15 @@
                         
                         if (windSpeed > 6 || (visibility !== null && visibility < 0.1)) {
                             hourCell.style.backgroundColor = '#ffcccc';
+                        } else {
+                            // 如果不满足风险条件，则设置为绿色
+                            hourCell.style.backgroundColor = '#ccffcc';
                         }
                         
                         hourCell.title = `风速: ${windSpeed.toFixed(2)} m/s${visibility !== null ? `, 能见度: ${visibility.toFixed(2)} 公里` : ''}`;
+                    } else {
+                        // 如果没有数据，也设置为绿色
+                        hourCell.style.backgroundColor = '#ccffcc';
                     }
                     
                     row.appendChild(hourCell);
@@ -617,9 +627,15 @@
                         
                         if (windSpeed > 8 || waveHeight > 0.7 || (visibility !== null && visibility < 0.1)) {
                             hourCell.style.backgroundColor = '#ffcccc';
+                        } else {
+                            // 如果不满足风险条件，则设置为绿色
+                            hourCell.style.backgroundColor = '#ccffcc';
                         }
                         
                         hourCell.title = `风速: ${windSpeed.toFixed(2)} m/s, 浪高: ${waveHeight.toFixed(2)} 米${visibility !== null ? `, 能见度: ${visibility.toFixed(2)} 公里` : ''}`;
+                    } else {
+                        // 如果没有数据，也设置为绿色
+                        hourCell.style.backgroundColor = '#ccffcc';
                     }
                     
                     row.appendChild(hourCell);
@@ -715,9 +731,15 @@
                         
                         if (windSpeed > 10) {
                             hourCell.style.backgroundColor = '#ffcccc';
+                        } else {
+                            // 如果不满足风险条件，则设置为绿色
+                            hourCell.style.backgroundColor = '#ccffcc';
                         }
                         
                         hourCell.title = `风速: ${windSpeed.toFixed(2)} m/s`;
+                    } else {
+                        // 如果没有数据，也设置为绿色
+                        hourCell.style.backgroundColor = '#ccffcc';
                     }
                     
                     row.appendChild(hourCell);
@@ -887,101 +909,117 @@
             return directions[index];
         }
         
-        // 创建波高图表
-        function createWaveChart(times, hourlyData) {
-            const ctx = document.getElementById('waveChart').getContext('2d');
-            
+        // 创建 ECharts 图表
+        function createEChart(times, hourlyData) {
             // 如果已有图表，先销毁
-            if (waveChart) {
-                waveChart.destroy();
+            if (echartInstance) {
+                echartInstance.dispose();
             }
+            
+            // 初始化 ECharts 实例
+            echartInstance = echarts.init(document.getElementById('echartContainer'));
             
             // 使用所有数据，不进行限制
             const chartTimes = times;
             const chartWaveHeights = hourlyData.wave_height;
             const chartWindSpeeds = hourlyData.wind_speed_10m;
             
-            waveChart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: chartTimes.map(t => t.toLocaleString('zh-CN', { 
+            // 配置图表选项
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'cross'
+                    }
+                },
+                legend: {
+                    data: ['波高', '风速'],
+                    top: 10
+                },
+                grid: {
+                    top: 80,
+                    bottom: 120
+                },
+                xAxis: {
+                    type: 'category',
+                    data: chartTimes.map(t => t.toLocaleString('zh-CN', { 
                         month: 'short', 
                         day: 'numeric', 
                         hour: '2-digit', 
                         minute: '2-digit' 
                     })),
-                    datasets: [
-                        {
-                            label: '波高',
-                            data: chartWaveHeights,
-                            borderColor: 'blue',
-                            backgroundColor: 'rgba(0, 0, 255, 0.1)',
-                            borderWidth: 2,
-                            fill: false,
-                            pointRadius: 0,
-                            yAxisID: 'y'
-                        },
-                        {
-                            label: '风速',
-                            data: chartWindSpeeds,
-                            borderColor: 'green',
-                            backgroundColor: 'rgba(0, 128, 0, 0.1)',
-                            borderWidth: 2,
-                            borderDash: [5, 5],
-                            fill: false,
-                            pointRadius: 0,
-                            yAxisID: 'y1'
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        x: {
-                            ticks: {
-                                maxRotation: 0,
-                                autoSkip: true,
-                                maxTicksLimit: 30
-                            },
-                            title: {
-                                display: true,
-                                text: '时间'
-                            }
-                        },
-                        y: {
-                            position: 'left',
-                            title: {
-                                display: true,
-                                text: '波高（米）'
-                            }
-                        },
-                        y1: {
-                            position: 'right',
-                            title: {
-                                display: true,
-                                text: '风速（米/秒）'
-                            },
-                            grid: {
-                                drawOnChartArea: false,
-                            },
-                        }
-                    },
-                    plugins: {
-                        legend: {
-                            position: 'top',
-                        },
-                        tooltip: {
-                            mode: 'index',
-                            intersect: false
-                        }
-                    },
-                    interaction: {
-                        mode: 'nearest',
-                        axis: 'x',
-                        intersect: false
+                    axisLabel: {
+                        rotate: 45,
+                        fontSize: 10
                     }
-                }
+                },
+                yAxis: [
+                    {
+                        type: 'value',
+                        name: '波高（米）',
+                        position: 'left',
+                        axisLabel: {
+                            formatter: '{value}'
+                        }
+                    },
+                    {
+                        type: 'value',
+                        name: '风速（米/秒）',
+                        position: 'right',
+                        axisLabel: {
+                            formatter: '{value}'
+                        }
+                    }
+                ],
+                series: [
+                    {
+                        name: '波高',
+                        type: 'line',
+                        yAxisIndex: 0,
+                        data: chartWaveHeights,
+                        itemStyle: {
+                            color: 'blue'
+                        },
+                        lineStyle: {
+                            width: 2
+                        },
+                        showSymbol: false
+                    },
+                    {
+                        name: '风速',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        data: chartWindSpeeds,
+                        itemStyle: {
+                            color: 'green'
+                        },
+                        lineStyle: {
+                            width: 2,
+                            type: 'dashed'
+                        },
+                        showSymbol: false
+                    }
+                ],
+                dataZoom: [
+                    {
+                        type: 'inside',
+                        start: 0,
+                        end: 100
+                    },
+                    {
+                        start: 0,
+                        end: 100,
+                        bottom: 30
+                    }
+                ]
+            };
+            
+            // 使用配置项显示图表
+            echartInstance.setOption(option);
+            
+            // 监听窗口大小变化，自动调整图表大小
+            window.addEventListener('resize', function() {
+                echartInstance.resize();
             });
         }
         
